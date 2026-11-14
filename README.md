@@ -1,71 +1,71 @@
-# cadence — recomendação de álbuns que explica o porquê
+# cadence — album recommendations that explain why
 
-**Demo:** https://danmartsarr.github.io/cadence/ (entre em *Try the demo*, avalie três álbuns)
+**Demo:** https://danmartsarr.github.io/cadence/ (tap *Try the demo*, rate three albums)
 
-Você avalia discos de 0,5 a 5 estrelas e o app recomenda outros, sempre dizendo
-**por que**: quais das suas avaliações pesaram e quais características
-(gênero, clima, época) o disco divide com o seu gosto. Nada de caixa-preta.
+Rate albums from 0.5 to 5 stars and the app recommends others, always saying
+**why**: which of your ratings mattered and which traits (genre, mood, era) the
+album shares with your taste. No black box.
 
-| Início | Por que você pode gostar |
+| Home | Why you might like it |
 |---|---|
-| ![Recomendações com o motivo de cada uma](docs/home.jpg) | ![Explicação: álbuns avaliados e traços em comum](docs/why.jpg) |
+| ![Recommendations with their reasons](docs/home.jpg) | ![Explanation: rated albums and shared traits](docs/why.jpg) |
 
-## Como funciona
+## How it works
 
-O modelo é **baseado em conteúdo** e roda inteiro no aparelho, sem servidor:
+The model is **content-based** and runs entirely on the device, no server:
 
-1. **Catálogo** — `tools/build_catalog.py` busca 338 álbuns no
-   [MusicBrainz](https://musicbrainz.org) (tags da comunidade, notas, faixas) e
-   as capas no [Cover Art Archive](https://coverartarchive.org). Tags-ruído
-   ("vinyl", "albums i own", anos) são removidas.
-2. **Representação** — cada álbum vira um vetor **TF-IDF** das tags, com o
-   artista como dimensão extra. Tag rara (ex.: *shoegaze*) diz mais que tag
-   comum (*rock*).
-3. **Perfil do usuário** — soma dos vetores dos álbuns avaliados, com peso
-   centrado na nota (Rocchio): 5★ puxa para perto, 1★ empurra para longe.
-4. **Ranking** — cosseno entre perfil e álbuns não avaliados.
-5. **Diversidade** — **MMR** (*Maximal Marginal Relevance*) reordena para não
-   entregar dez discos iguais.
-6. **Explicação** — decompõe o escore em contribuição por tag e por álbum
-   avaliado; é isso que aparece em *Why you might like it*.
+1. **Catalog** — `tools/build_catalog.py` fetches 338 albums from
+   [MusicBrainz](https://musicbrainz.org) (community tags, ratings, tracks)
+   and covers from the [Cover Art Archive](https://coverartarchive.org).
+   Noise tags ("vinyl", "albums i own", years) are removed.
+2. **Representation** — each album becomes a **TF-IDF** vector over its tags,
+   plus the artist as an extra dimension. A rare tag (*shoegaze*) says more
+   than a common one (*rock*).
+3. **User profile** — sum of the rated albums' vectors weighted by the centred
+   rating (Rocchio): 5★ pulls closer, 1★ pushes away.
+4. **Ranking** — cosine between the profile and every unrated album.
+5. **Diversity** — **MMR** (Maximal Marginal Relevance) re-ranks so you don't
+   get ten copies of the same record.
+6. **Explanation** — the score is decomposed into per-tag and per-rated-album
+   contributions; that is what *Why you might like it* shows.
 
-Também: *Deep cuts* (mesmo gosto, discos menos votados), *Sounds like*
-(vizinhos mais próximos) e favoritos da comunidade por **média bayesiana**
-(um voto 5★ não passa na frente de 40 votos 4,6★).
+Also: *Deep cuts* (same taste, less-voted albums), *Sounds like* (nearest
+neighbours) and community favourites by **Bayesian average** (one 5★ vote does
+not beat forty 4.6★ votes).
 
-Código do modelo: [`lib/shared/recommender/recommender.dart`](lib/shared/recommender/recommender.dart).
+Model code: [`lib/shared/recommender/recommender.dart`](lib/shared/recommender/recommender.dart).
 
-## Avaliação
+## Evaluation
 
-Sem avaliações de usuários reais, a tarefa-proxy é **recuperar o artista**:
-esconde-se o artista e mede-se se só as tags põem outros discos dele entre os
-10 vizinhos mais próximos (100 consultas).
+There are no real user ratings, so the proxy task is **artist retrieval**: hide
+the artist and check whether the tags alone put other albums by the same artist
+among the 10 nearest neighbours (100 queries).
 
-| Representação | recall@10 | hit@10 | MRR |
+| Representation | recall@10 | hit@10 | MRR |
 |---|---:|---:|---:|
-| aleatório | 0,015 | 0,020 | 0,019 |
-| contagem bruta das tags | 0,800 | 0,860 | 0,635 |
-| **TF-IDF (usado no app)** | **0,830** | **0,880** | **0,660** |
+| random | 0.015 | 0.020 | 0.019 |
+| raw tag counts | 0.800 | 0.860 | 0.635 |
+| **TF-IDF (used in the app)** | **0.830** | **0.880** | **0.660** |
 
-Verifiquei que nenhuma tag contém o nome do artista (não há vazamento).
-É uma medida conservadora: discos parecidos de artistas diferentes contam como
-erro. Reproduzir: `python3 tools/evaluate.py` (sem dependências).
+No tag contains the artist's name (checked, no leakage). It is a conservative
+measure: similar albums by different artists count as misses. Reproduce with
+`python3 tools/evaluate.py` (no dependencies).
 
-## Rodar
+## Run
 
 ```bash
 flutter pub get
-flutter test                 # testes do recomendador
-flutter run -d chrome        # ou: flutter build web
-python3 tools/evaluate.py    # avaliação offline
-python3 tools/build_catalog.py   # regenera o catálogo (≈10 min, respeita o limite do MusicBrainz)
+flutter test                     # recommender tests
+flutter run -d chrome            # or: flutter build web
+python3 tools/evaluate.py        # offline evaluation
+python3 tools/build_catalog.py   # rebuild the catalog (~10 min, respects MusicBrainz rate limits)
 ```
 
-Flutter 3 · Riverpod · go_router · avaliações salvas no aparelho
-(`shared_preferences`). O login é simulado: serve só para a navegação do
-protótipo.
+Flutter 3 · Riverpod · go_router · ratings stored on the device
+(`shared_preferences`). Sign-in is mocked; it only exists for the prototype's
+navigation.
 
-## Próximos passos
+## Next steps
 
-- Filtragem colaborativa quando houver avaliações de várias pessoas (modelo híbrido)
-- Embeddings de áudio (ex.: espectrogramas) para álbuns com poucas tags
+- Collaborative filtering once there are ratings from many people (hybrid model)
+- Audio embeddings (e.g. spectrograms) for albums with few tags
