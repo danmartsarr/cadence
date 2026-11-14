@@ -64,7 +64,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       gradient: CadenceColors.primaryGradient,
                       borderRadius: BorderRadius.circular(9),
                     ),
-                    child: const Icon(Icons.album, color: Colors.white, size: 20),
+                    child: const Icon(Icons.album, color: CadenceColors.onPrimary, size: 20),
                   ),
                   const SizedBox(width: 10),
                   const Text('cadence', style: TextStyle(color: CadenceColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
@@ -129,7 +129,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               ElevatedButton(
                 onPressed: auth.isLoading ? null : _submit,
                 child: auth.isLoading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: CadenceColors.onPrimary))
                     : const Text('Sign In'),
               ),
 

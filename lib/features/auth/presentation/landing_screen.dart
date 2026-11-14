@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../shared/providers/auth_provider.dart';
+
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/colors.dart';
+import '../../../shared/models/album.dart';
+import '../../../shared/providers/albums_provider.dart';
+import '../../../shared/providers/auth_provider.dart';
+import '../../../shared/widgets/album_cover.dart';
+import '../../../shared/widgets/poster.dart';
 
 class LandingScreen extends ConsumerStatefulWidget {
   const LandingScreen({super.key});
@@ -11,198 +17,117 @@ class LandingScreen extends ConsumerStatefulWidget {
   ConsumerState<LandingScreen> createState() => _LandingScreenState();
 }
 
-class _LandingScreenState extends ConsumerState<LandingScreen> with TickerProviderStateMixin {
-  late final AnimationController _fadeController;
-  late final AnimationController _slideController;
-  late final Animation<double> _fadeAnim;
-  late final Animation<Offset> _slideAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _fadeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
-    _slideController = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
-    _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
-
-    Future.delayed(const Duration(milliseconds: 200), () {
-      _fadeController.forward();
-      _slideController.forward();
-    });
-  }
+class _LandingScreenState extends ConsumerState<LandingScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _drift = AnimationController(vsync: this, duration: const Duration(seconds: 40))..repeat(reverse: true);
 
   @override
   void dispose() {
-    _fadeController.dispose();
-    _slideController.dispose();
+    _drift.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final albums = ref.watch(catalogProvider).valueOrNull ?? const <Album>[];
+    final size = MediaQuery.sizeOf(context);
+    final wide = size.width > 760;
+
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Background grid of album covers
-          _AlbumGrid(),
-
-          // Dark overlay gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: [0.0, 0.3, 0.7, 1.0],
-                colors: [
-                  Color(0x99050A14),
-                  Color(0x55050A14),
-                  Color(0xDD050A14),
-                  Color(0xFF050A14),
-                ],
-              ),
+      body: Stack(fit: StackFit.expand, children: [
+        if (albums.isNotEmpty) _Mosaic(albums: albums, drift: _drift),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xE60E1013), Color(0x8C0E1013), Color(0xB30E1013), Color(0xF20E1013), CadenceColors.background],
+              stops: [0, 0.14, 0.38, 0.62, 1],
             ),
           ),
-
-          // Content
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  FadeTransition(
-                    opacity: _fadeAnim,
-                    child: SlideTransition(
-                      position: _slideAnim,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Logo
-                          Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  gradient: CadenceColors.primaryGradient,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(Icons.album, color: Colors.white, size: 22),
-                              ),
-                              const SizedBox(width: 12),
-                              const Text(
-                                'cadence',
-                                style: TextStyle(
-                                  color: CadenceColors.textPrimary,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          Text(
-                            'Every album\nhas a story.',
-                            style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                                  color: CadenceColors.textPrimary,
-                                  height: 1.1,
-                                ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          Text(
-                            'Rate, review, and discover albums with people who care as much about music as you do.',
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  color: CadenceColors.textSecondary,
-                                  height: 1.5,
-                                ),
-                          ),
-
-                          const SizedBox(height: 48),
-
-                          ElevatedButton(
-                            onPressed: () => context.push('/sign-up'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: CadenceColors.primary,
-                              minimumSize: const Size(double.infinity, 52),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: const Text('Get Started', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          OutlinedButton(
-                            onPressed: () => context.push('/sign-in'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: CadenceColors.textPrimary,
-                              minimumSize: const Size(double.infinity, 52),
-                              side: const BorderSide(color: CadenceColors.border, width: 1.5),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: const Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          TextButton(
-                            onPressed: () => ref.read(authProvider.notifier).signIn('guest@cadence.demo', 'demo'),
-                            child: const Text('Try the demo without an account', style: TextStyle(color: CadenceColors.primaryLight, fontSize: 14)),
-                          ),
-
-                          const SizedBox(height: 32),
-                        ],
-                      ),
-                    ),
+        ),
+        SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(28, 24, 28, 36),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    const CadenceMark(size: 30),
+                    const SizedBox(width: 10),
+                    Text('cadence', style: CadenceType.display(26)),
+                  ]),
+                  const Spacer(),
+                  Text('Every album\nhas a story.', style: CadenceType.display(wide ? 68 : 52)),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Keep a diary of the records you love. Rate them, and cadence tells you what to play next, and why.',
+                    style: CadenceType.ui(16, weight: FontWeight.w400, color: CadenceColors.textSecondary).copyWith(height: 1.5),
                   ),
-                ],
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: () => ref.read(authProvider.notifier).signIn('guest@cadence.demo', 'demo'),
+                    child: const Text('Try the demo'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: OutlinedButton(onPressed: () => context.push('/sign-up'), child: const Text('Create account'))),
+                    const SizedBox(width: 12),
+                    Expanded(child: OutlinedButton(onPressed: () => context.push('/sign-in'), child: const Text('Sign in'))),
+                  ]),
+                ]),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }
 
-class _AlbumGrid extends StatelessWidget {
-  final _urls = [
-    'https://upload.wikimedia.org/wikipedia/en/f/f6/Kendrick_Lamar_-_To_Pimp_a_Butterfly.png',
-    'https://upload.wikimedia.org/wikipedia/en/b/ba/Radioheadokcomputer.png',
-    'https://upload.wikimedia.org/wikipedia/en/a/a0/Blonde_-_Frank_Ocean.jpeg',
-    'https://upload.wikimedia.org/wikipedia/en/3/3b/Radiohead_-_In_Rainbows.png',
-    'https://upload.wikimedia.org/wikipedia/en/7/70/Kanye_West_-_My_Beautiful_Dark_Twisted_Fantasy.png',
-    'https://upload.wikimedia.org/wikipedia/en/9/9b/Tame_Impala_-_Currents.png',
-    'https://upload.wikimedia.org/wikipedia/en/0/0d/Good_kid_maad_city.jpg',
-    'https://upload.wikimedia.org/wikipedia/en/f/f4/Fleetwood_Mac_-_Rumours.png',
-    'https://upload.wikimedia.org/wikipedia/en/8/84/Tyler_the_Creator_-_Igor.png',
-    'https://upload.wikimedia.org/wikipedia/en/1/15/Frank_Ocean_-_Channel_Orange.png',
-    'https://upload.wikimedia.org/wikipedia/en/b/bb/PetSoundsCover.jpg',
-    'https://upload.wikimedia.org/wikipedia/en/9/9a/Purplerain.jpg',
-  ];
+/// Slowly drifting wall of covers from the catalog.
+class _Mosaic extends StatelessWidget {
+  final List<Album> albums;
+  final Animation<double> drift;
+  const _Mosaic({required this.albums, required this.drift});
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
-      ),
-      itemCount: _urls.length,
-      itemBuilder: (_, i) => Image.network(
-        _urls[i % _urls.length],
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stack) => Container(color: CadenceColors.surface),
-      ),
-    );
+    final withCovers = albums.where((a) => a.coverUrl != null).toList()..sort((a, b) => b.ratingCount.compareTo(a.ratingCount));
+    final pool = withCovers.take(48).toList();
+    return LayoutBuilder(builder: (context, c) {
+      const tile = 132.0, gap = 10.0;
+      final rows = (c.maxHeight / (tile + gap)).ceil() + 1;
+      final perRow = (c.maxWidth / (tile + gap)).ceil() + 3;
+      return ClipRect(
+        child: AnimatedBuilder(
+          animation: drift,
+          builder: (context, _) => OverflowBox(
+            alignment: Alignment.topLeft,
+            maxWidth: double.infinity,
+            maxHeight: double.infinity,
+            child: Transform.rotate(
+              angle: -0.06,
+              child: Column(children: [
+                for (var r = 0; r < rows; r++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: gap),
+                    child: Transform.translate(
+                      offset: Offset(-(tile + gap) * 2 + ((r.isEven ? 1 : -1) * drift.value * (tile + gap) * 2), 0),
+                      child: Row(children: [
+                        for (var i = 0; i < perRow; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(right: gap),
+                            child: AlbumCover(url: pool[(r * 7 + i) % pool.length].coverUrl, width: tile, height: tile, borderRadius: 4),
+                          ),
+                      ]),
+                    ),
+                  ),
+              ]),
+            ),
+          ),
+        ),
+      );
+    });
   }
 }

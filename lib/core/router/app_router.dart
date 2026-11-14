@@ -34,7 +34,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => MainShell(child: child),
         routes: [
           GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
-          GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
+          GoRoute(path: '/search', builder: (context, state) => SearchScreen(initialQuery: state.uri.queryParameters['q'])),
           GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
         ],
       ),
@@ -68,8 +68,6 @@ class MainShell extends ConsumerWidget {
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
-        backgroundColor: const Color(0xFF0D1B2A),
-        indicatorColor: const Color(0xFF1A3A5C),
         selectedIndex: selectedIndex,
         onDestinationSelected: (i) {
           switch (i) {
@@ -79,9 +77,9 @@ class MainShell extends ConsumerWidget {
           }
         },
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.search_outlined), selectedIcon: Icon(Icons.search), label: 'Discover'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.search_rounded), selectedIcon: Icon(Icons.manage_search_rounded), label: 'Search'),
+          NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
         ],
       ),
     );

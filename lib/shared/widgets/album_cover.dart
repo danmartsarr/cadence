@@ -15,7 +15,7 @@ class AlbumCover extends StatelessWidget {
     required this.url,
     this.width,
     this.height,
-    this.borderRadius = 12,
+    this.borderRadius = 6,
     this.fit = BoxFit.cover,
   });
 
@@ -53,7 +53,7 @@ class AlbumCover extends StatelessWidget {
       width: width,
       height: height,
       color: CadenceColors.surface,
-      child: const Icon(Icons.album, color: CadenceColors.textSecondary, size: 40),
+      child: const Center(child: Icon(Icons.album_rounded, color: CadenceColors.textMuted, size: 36)),
     );
   }
 }
@@ -85,13 +85,14 @@ class StarRating extends StatelessWidget {
         final half = !filled && rating >= value - 0.5;
 
         final icon = filled
-            ? Icons.star
+            ? Icons.star_rounded
             : half
-                ? Icons.star_half
-                : Icons.star_border;
+                ? Icons.star_half_rounded
+                : Icons.star_outline_rounded;
+        final color = filled || half ? CadenceColors.starActive : CadenceColors.starInactive;
 
         if (!interactive) {
-          return Icon(icon, color: CadenceColors.starActive, size: size);
+          return Icon(icon, color: color, size: size);
         }
 
         return GestureDetector(
@@ -104,7 +105,7 @@ class StarRating extends StatelessWidget {
             final newRating = ((local.dx / w) * stars).clamp(0.5, stars.toDouble());
             onChanged?.call((newRating * 2).round() / 2);
           },
-          child: Icon(icon, color: CadenceColors.starActive, size: size),
+          child: Icon(icon, color: color, size: size),
         );
       }),
     );

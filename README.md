@@ -6,9 +6,22 @@ Rate albums from 0.5 to 5 stars and the app recommends others, always saying
 **why**: which of your ratings mattered and which traits (genre, mood, era) the
 album shares with your taste. No black box.
 
-| Home | Why you might like it |
+![Landing page](docs/landing.jpg)
+
+| Made for you | Album page, tinted with the cover's colour |
 |---|---|
-| ![Recommendations with their reasons](docs/home.jpg) | ![Explanation: rated albums and shared traits](docs/why.jpg) |
+| ![Recommendations with their reasons](docs/home.jpg) | ![Album page](docs/album.jpg) |
+| **Why it's on your radar** | **Browse by sound** |
+| ![The explanation, written as a sentence](docs/why.jpg) | ![Genre tiles](docs/search.jpg) |
+
+## Design
+
+Somewhere between a streaming app and a film diary: a near-black stage with a
+green accent, cover-as-poster grids with thin borders and green stars, an
+editorial serif (DM Serif Display) for titles and Inter for the interface.
+Each album page takes its header colour from the cover itself (dominant hue,
+weighted by saturation). The recommender's explanation is written as a
+sentence with the covers that caused it, not as a chart.
 
 ## How it works
 

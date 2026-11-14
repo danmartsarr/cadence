@@ -21,6 +21,7 @@ dependencies:
   cached_network_image: ^3.3.1
 
   # UI
+  google_fonts: ^6.2.1
   shimmer: ^3.0.0
 
   # Persistence

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/colors.dart';
 import '../../../shared/models/album.dart';
 import '../../../shared/models/review.dart';
 import '../../../shared/providers/albums_provider.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/widgets/album_cover.dart';
+import '../../../shared/widgets/cover_color.dart';
+import '../../../shared/widgets/poster.dart';
 
 class AlbumDetailScreen extends ConsumerWidget {
   final Album album;
@@ -16,321 +20,308 @@ class AlbumDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reviews = ref.watch(albumReviewsProvider(album.id));
-    final critics = reviews.where((r) => r.isCritic).toList();
-    final users = reviews.where((r) => !r.isCritic).toList();
+    final tint = album.coverUrl == null ? null : ref.watch(coverColorProvider(album.coverUrl!)).valueOrNull;
+    final header = tint ?? CadenceColors.surfaceElevated;
+    final width = MediaQuery.sizeOf(context).width;
+    final coverSize = (width * 0.62).clamp(200.0, 300.0);
+    final totalMs = album.tracks.fold<int>(0, (s, t) => s + (t.durationMs ?? 0));
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
+      body: Stack(children: [
+        // Header tinted with the cover's own colour, fading into the page
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 600),
+          height: coverSize + 260,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [header, header.withAlpha(150), CadenceColors.background],
+              stops: const [0, 0.55, 1],
+            ),
+          ),
+        ),
+        CustomScrollView(slivers: [
           SliverAppBar(
-            expandedHeight: 360,
             pinned: true,
-            backgroundColor: CadenceColors.background,
-            leading: GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: CadenceColors.surface.withAlpha(200),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.arrow_back_ios_new, size: 16, color: CadenceColors.textPrimary),
-              ),
-            ),
-            actions: [
-              Container(
-                margin: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
-                decoration: BoxDecoration(color: CadenceColors.surface.withAlpha(200), shape: BoxShape.circle),
-                child: IconButton(
-                  icon: const Icon(Icons.share_outlined, size: 18, color: CadenceColors.textPrimary),
-                  onPressed: () {},
-                ),
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  AlbumCover(url: album.coverUrl, borderRadius: 0, fit: BoxFit.cover),
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 0.5, 1.0],
-                        colors: [Color(0x33050A14), Colors.transparent, CadenceColors.background],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            backgroundColor: Colors.transparent,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+              onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
             ),
           ),
-
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title + artist
-                  Text(album.title, style: Theme.of(context).textTheme.headlineMedium),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(album.artist, style: const TextStyle(color: CadenceColors.primaryLight, fontSize: 15, fontWeight: FontWeight.w500)),
-                      if (album.year != null) ...[
-                        const Text('  ·  ', style: TextStyle(color: CadenceColors.textSecondary)),
-                        Text(album.year.toString(), style: Theme.of(context).textTheme.bodyMedium),
-                      ],
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Stats row
-                  Row(
-                    children: [
-                      if (album.avgRating != null) ...[
-                        _StatChip(
-                          icon: Icons.star,
-                          label: album.avgRating!.toStringAsFixed(2),
-                          sub: 'avg rating',
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      if (album.ratingCount > 0)
-                        _StatChip(
-                          icon: Icons.how_to_vote_outlined,
-                          label: _formatCount(album.ratingCount),
-                          sub: 'votes',
-                        ),
-                      const SizedBox(width: 12),
-                      _StatChip(
-                        icon: Icons.rate_review_outlined,
-                        label: reviews.length.toString(),
-                        sub: 'reviews',
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Center(
+                      child: Container(
+                        decoration: const BoxDecoration(boxShadow: [BoxShadow(color: Color(0x99000000), blurRadius: 40, offset: Offset(0, 18))]),
+                        child: PosterCover(album: album, size: coverSize, radius: 6),
                       ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Rate / Review CTA
-                  _RateButton(album: album),
-
-                  const SizedBox(height: 24),
-
-                  // Why this was recommended (content-based explanation)
-                  _WhyRecommended(albumId: album.id),
-
-                  if (album.tags.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: album.tags.keys.take(8).map((t) => _TagPill(label: t)).toList(),
                     ),
                     const SizedBox(height: 28),
-                  ],
-
-                  // Nearest neighbours in tag space
-                  _SimilarAlbums(albumId: album.id),
-
-                  const SizedBox(height: 8),
-
-                  // Tracklist
-                  if (album.tracks.isNotEmpty) ...[
-                    Text('Tracklist', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: 12),
-                    ...album.tracks.asMap().entries.map((e) => _TrackRow(track: e.value)),
-                    const SizedBox(height: 28),
-                  ],
-
-                  // Critic Reviews
-                  if (critics.isNotEmpty) ...[
-                    Row(
-                      children: [
-                        Text('Critic Reviews', style: Theme.of(context).textTheme.titleLarge),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(color: CadenceColors.primary.withAlpha(50), borderRadius: BorderRadius.circular(20)),
-                          child: Text('${critics.length}', style: const TextStyle(color: CadenceColors.primaryLight, fontSize: 12, fontWeight: FontWeight.w600)),
-                        ),
-                      ],
+                    Text(album.title, style: CadenceType.display(width < 500 ? 34 : 42)),
+                    const SizedBox(height: 8),
+                    Text(album.artist, style: CadenceType.ui(16, weight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(
+                      [
+                        'Album',
+                        if (album.year != null) '${album.year}',
+                        if (album.tracks.isNotEmpty) '${album.tracks.length} songs',
+                        if (totalMs > 0) '${totalMs ~/ 60000} min',
+                      ].join(' · '),
+                      style: CadenceType.ui(13, weight: FontWeight.w400, color: CadenceColors.textSecondary),
                     ),
-                    const SizedBox(height: 14),
-                    ...critics.map((r) => _ReviewCard(review: r)),
+                    const SizedBox(height: 22),
+                    _RatingBar(album: album),
                     const SizedBox(height: 28),
-                  ],
-
-                  // User Reviews
-                  Row(
-                    children: [
-                      Text('Community Reviews', style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(color: CadenceColors.primary.withAlpha(50), borderRadius: BorderRadius.circular(20)),
-                        child: Text('${users.length}', style: const TextStyle(color: CadenceColors.primaryLight, fontSize: 12, fontWeight: FontWeight.w600)),
+                    _WhyRecommended(albumId: album.id),
+                    if (album.tags.isNotEmpty) ...[
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final t in album.tags.keys.take(8))
+                            TagPill(label: t, onTap: () => context.go('/search?q=${Uri.encodeComponent(t)}')),
+                        ],
                       ),
+                      const SizedBox(height: 32),
                     ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  if (users.isEmpty)
-                    _EmptyReviews(album: album)
-                  else
-                    ...users.map((r) => _ReviewCard(review: r)),
-
-                  const SizedBox(height: 40),
-                ],
+                    if (album.tracks.isNotEmpty) ...[
+                      Text('Tracklist', style: CadenceType.ui(20, weight: FontWeight.w800)),
+                      const SizedBox(height: 8),
+                      ...album.tracks.map((t) => _TrackRow(track: t)),
+                      const SizedBox(height: 32),
+                    ],
+                  ]),
+                ),
               ),
             ),
           ),
-        ],
-      ),
+          SliverToBoxAdapter(child: _SimilarAlbums(albumId: album.id)),
+          SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 48),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Reviews', style: CadenceType.ui(20, weight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    if (album.avgRating != null)
+                      Row(children: [
+                        StarRating(rating: album.avgRating!, size: 14),
+                        const SizedBox(width: 8),
+                        Text('${album.avgRating!.toStringAsFixed(1)} from ${album.ratingCount} MusicBrainz votes',
+                            style: CadenceType.ui(12.5, weight: FontWeight.w400, color: CadenceColors.textSecondary)),
+                      ]),
+                    const SizedBox(height: 16),
+                    if (reviews.isEmpty) _EmptyReviews(album: album) else ...reviews.map((r) => _ReviewCard(review: r)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ]),
+      ]),
     );
-  }
-
-  String _formatCount(int count) {
-    if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
-    if (count >= 1000) return '${(count / 1000).toStringAsFixed(0)}K';
-    return count.toString();
   }
 }
 
-class _StatChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String sub;
-
-  const _StatChip({required this.icon, required this.label, required this.sub});
+/// Letterboxd-style action bar: rate inline, or open the full review sheet.
+class _RatingBar extends ConsumerWidget {
+  final Album album;
+  const _RatingBar({required this.album});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mine = ref.watch(ratingsProvider)[album.id];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(18, 14, 10, 14),
+      decoration: BoxDecoration(color: const Color(0x14FFFFFF), borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(mine == null ? 'RATE' : 'YOU RATED', style: CadenceType.label(CadenceColors.textSecondary)),
+            const SizedBox(height: 6),
+            StarRating(
+              rating: mine ?? 0,
+              size: 32,
+              interactive: true,
+              onChanged: (v) {
+                ref.read(ratingsProvider.notifier).rate(album.id, v);
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(SnackBar(content: Text('Rated ${album.title} ${v.toStringAsFixed(1)}★'), duration: const Duration(seconds: 2)));
+              },
+            ),
+          ]),
+        ),
+        if (mine != null)
+          IconButton(
+            tooltip: 'Remove rating',
+            icon: const Icon(Icons.close_rounded, color: CadenceColors.textMuted, size: 20),
+            onPressed: () => ref.read(ratingsProvider.notifier).remove(album.id),
+          ),
+        TextButton.icon(
+          onPressed: () => _showReviewSheet(context, album),
+          icon: const Icon(Icons.edit_note_rounded, size: 20),
+          label: const Text('Review'),
+        ),
+      ]),
+    );
+  }
+}
+
+/// The recommender's explanation, written as a sentence instead of a chart.
+class _WhyRecommended extends ConsumerWidget {
+  final String albumId;
+  const _WhyRecommended({required this.albumId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final why = ref.watch(explanationProvider(albumId));
+    if (why == null) return const SizedBox.shrink();
+    final loved = why.because.map((b) => b.album).toList();
+    final names = loved.take(2).map((a) => a.title).toList();
+    final tags = why.tags.take(4).map((e) => e.key).toList();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 28),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: CadenceColors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: CadenceColors.border),
       ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: CadenceColors.primaryLight, size: 14),
-              const SizedBox(width: 4),
-              Text(label, style: const TextStyle(color: CadenceColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
-            ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('WHY IT\'S ON YOUR RADAR', style: CadenceType.label(CadenceColors.primary)),
+        const SizedBox(height: 16),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          if (loved.isNotEmpty) ...[CoverFan(albums: loved, size: 58), const SizedBox(width: 16)],
+          Expanded(
+            child: Text.rich(
+              TextSpan(style: CadenceType.display(21, color: CadenceColors.textSecondary), children: [
+                if (names.isNotEmpty) ...[
+                  const TextSpan(text: 'Because you loved '),
+                  TextSpan(text: names.first, style: const TextStyle(color: CadenceColors.textPrimary)),
+                  if (names.length > 1) ...[
+                    const TextSpan(text: ' and '),
+                    TextSpan(text: names[1], style: const TextStyle(color: CadenceColors.textPrimary)),
+                  ],
+                  const TextSpan(text: '.'),
+                ] else
+                  const TextSpan(text: 'It shares the sound of what you rate highly.'),
+              ]),
+            ),
           ),
-          Text(sub, style: const TextStyle(color: CadenceColors.textSecondary, fontSize: 10)),
+        ]),
+        if (tags.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          Text('They share', style: CadenceType.ui(12.5, weight: FontWeight.w500, color: CadenceColors.textSecondary)),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [for (final t in tags) TagPill(label: t, highlight: true)]),
         ],
-      ),
+        if (why.sameArtist) ...[
+          const SizedBox(height: 14),
+          Text('And it\'s by an artist you already rated well.',
+              style: CadenceType.ui(12.5, weight: FontWeight.w500, color: CadenceColors.textSecondary)),
+        ],
+      ]),
+    );
+  }
+}
+
+class _SimilarAlbums extends ConsumerWidget {
+  final String albumId;
+  const _SimilarAlbums({required this.albumId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final similar = ref.watch(similarAlbumsProvider(albumId));
+    if (similar.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 32),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const SectionHeader(title: 'Sounds like', subtitle: 'Albums with the closest sound'),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 196,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            scrollDirection: Axis.horizontal,
+            itemCount: similar.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 16),
+            itemBuilder: (_, i) => PosterTile(album: similar[i].key),
+          ),
+        ),
+      ]),
     );
   }
 }
 
 class _TrackRow extends StatelessWidget {
   final Track track;
-
   const _TrackRow({required this.track});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CadenceColors.border, width: 0.5))),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 28,
-            child: Text(track.position.toString(), style: const TextStyle(color: CadenceColors.textSecondary, fontSize: 13)),
-          ),
-          Expanded(child: Text(track.title, style: const TextStyle(color: CadenceColors.textPrimary, fontSize: 14))),
-          if (track.formattedDuration.isNotEmpty)
-            Text(track.formattedDuration, style: const TextStyle(color: CadenceColors.textSecondary, fontSize: 13)),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      child: Row(children: [
+        SizedBox(width: 32, child: Text('${track.position}', style: CadenceType.ui(14, weight: FontWeight.w400, color: CadenceColors.textSecondary))),
+        Expanded(child: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: CadenceType.ui(15, weight: FontWeight.w500))),
+        if (track.formattedDuration.isNotEmpty)
+          Text(track.formattedDuration, style: CadenceType.ui(13, weight: FontWeight.w400, color: CadenceColors.textSecondary)),
+      ]),
     );
   }
 }
 
 class _ReviewCard extends StatelessWidget {
   final Review review;
-
   const _ReviewCard({required this.review});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: CadenceColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: CadenceColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: review.isCritic ? CadenceColors.primary : CadenceColors.surfaceElevated,
-                child: Text(
-                  review.userName.substring(0, 1).toUpperCase(),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(review.userName, style: const TextStyle(color: CadenceColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
-                        if (review.isCritic) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: CadenceColors.primary.withAlpha(50), borderRadius: BorderRadius.circular(6)),
-                            child: const Text('Critic', style: TextStyle(color: CadenceColors.primaryLight, fontSize: 10, fontWeight: FontWeight.w600)),
-                          ),
-                        ],
-                      ],
-                    ),
-                    Text(
-                      _formatDate(review.createdAt),
-                      style: const TextStyle(color: CadenceColors.textSecondary, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              StarRating(rating: review.rating, size: 14),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: const BoxDecoration(border: Border(top: BorderSide(color: CadenceColors.border))),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: CadenceColors.tileFor(review.userName),
+          child: Text(review.userName.substring(0, 1).toUpperCase(), style: CadenceType.ui(12, weight: FontWeight.w800)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, children: [
+              Text.rich(TextSpan(style: CadenceType.ui(13, weight: FontWeight.w400, color: CadenceColors.textSecondary), children: [
+                const TextSpan(text: 'Review by '),
+                TextSpan(text: review.userName, style: const TextStyle(color: CadenceColors.textPrimary, fontWeight: FontWeight.w700)),
+              ])),
+              StarRating(rating: review.rating, size: 13),
+            ]),
+            if (review.content != null && review.content!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(review.content!, style: CadenceType.ui(14.5, weight: FontWeight.w400, color: CadenceColors.textPrimary).copyWith(height: 1.55)),
             ],
-          ),
-          if (review.content != null && review.content!.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(review.content!, style: const TextStyle(color: CadenceColors.textSecondary, fontSize: 13, height: 1.5)),
-          ],
-          if (review.favoriteTrack != null || review.leastFavoriteTrack != null) ...[
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-            if (review.favoriteTrack != null)
-              _TrackBadge(icon: Icons.favorite, label: 'Fav track', track: review.favoriteTrack!.title, color: CadenceColors.success),
-            if (review.leastFavoriteTrack != null) ...[
-              const SizedBox(height: 6),
-              _TrackBadge(icon: Icons.heart_broken, label: 'Skip', track: review.leastFavoriteTrack!.title, color: CadenceColors.error),
+            if (review.favoriteTrack != null) ...[
+              const SizedBox(height: 8),
+              Text('♥ ${review.favoriteTrack!.title}', style: CadenceType.ui(12.5, weight: FontWeight.w600, color: CadenceColors.accent)),
             ],
-          ],
-        ],
-      ),
+            const SizedBox(height: 6),
+            Text(_formatDate(review.createdAt), style: CadenceType.ui(11.5, weight: FontWeight.w400, color: CadenceColors.textMuted)),
+          ]),
+        ),
+      ]),
     );
   }
 
@@ -340,84 +331,27 @@ class _ReviewCard extends StatelessWidget {
   }
 }
 
-class _TrackBadge extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String track;
-  final Color color;
-
-  const _TrackBadge({required this.icon, required this.label, required this.track, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 13),
-        const SizedBox(width: 6),
-        Text('$label: ', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
-        Expanded(child: Text(track, style: const TextStyle(color: CadenceColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis)),
-      ],
-    );
-  }
-}
-
 class _EmptyReviews extends StatelessWidget {
   final Album album;
-
   const _EmptyReviews({required this.album});
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: CadenceColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: CadenceColors.border),
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.rate_review_outlined, color: CadenceColors.textSecondary, size: 32),
-          const SizedBox(height: 10),
-          Text('No reviews yet', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text('Be the first to review this album', style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: () => _showReviewSheet(context, album),
-            style: OutlinedButton.styleFrom(minimumSize: const Size(160, 42)),
-            child: const Text('Write a Review'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RateButton extends ConsumerWidget {
-  final Album album;
-
-  const _RateButton({required this.album});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      onTap: () => _showReviewSheet(context, album),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: CadenceColors.primaryGradient,
-          borderRadius: BorderRadius.circular(14),
+      decoration: BoxDecoration(color: CadenceColors.surface, borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        Text('No reviews yet', style: CadenceType.display(22)),
+        const SizedBox(height: 6),
+        Text('Write the first one in your diary.', style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: 16),
+        OutlinedButton(
+          onPressed: () => _showReviewSheet(context, album),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(170, 44)),
+          child: const Text('Write a review'),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.star_border, color: Colors.white, size: 20),
-            SizedBox(width: 10),
-            Text('Rate or Review this Album', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-          ],
-        ),
-      ),
+      ]),
     );
   }
 }
@@ -441,7 +375,7 @@ class _ReviewSheet extends ConsumerStatefulWidget {
 }
 
 class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
-  double _rating = 0;
+  late double _rating = ref.read(ratingsProvider)[widget.album.id] ?? 0;
   final _reviewCtrl = TextEditingController();
   Track? _favoriteTrack;
   Track? _leastFavoriteTrack;
@@ -468,13 +402,13 @@ class _ReviewSheetState extends ConsumerState<_ReviewSheet> {
       createdAt: DateTime.now(),
     );
 
+    ref.read(ratingsProvider.notifier).rate(widget.album.id, _rating);
     ref.read(reviewsProvider.notifier).addReview(review);
     Navigator.of(context).pop();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Review submitted!'),
-        backgroundColor: CadenceColors.success,
+        content: const Text('Saved to your diary'),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -697,142 +631,3 @@ class _TrackPickerDialog extends StatelessWidget {
 }
 
 
-class _TagPill extends StatelessWidget {
-  final String label;
-  const _TagPill({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: CadenceColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: CadenceColors.border),
-      ),
-      child: Text(label, style: const TextStyle(color: CadenceColors.textSecondary, fontSize: 12)),
-    );
-  }
-}
-
-/// Shows which of the user's ratings and which tags pushed this album up.
-class _WhyRecommended extends ConsumerWidget {
-  final String albumId;
-  const _WhyRecommended({required this.albumId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final why = ref.watch(explanationProvider(albumId));
-    if (why == null) return const SizedBox.shrink();
-    final maxTag = why.tags.isEmpty ? 1.0 : why.tags.first.value;
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: CadenceColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: CadenceColors.primary.withAlpha(120)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Icon(Icons.insights, color: CadenceColors.primaryLight, size: 18),
-            const SizedBox(width: 8),
-            Text('Why you might like it', style: Theme.of(context).textTheme.titleMedium),
-          ]),
-          if (why.because.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Close to albums you rated', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
-            ...why.because.map((inf) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(children: [
-                    AlbumCover(url: inf.album.coverUrl, width: 36, height: 36, borderRadius: 6),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text('${inf.album.title} · ${inf.album.artist}',
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: CadenceColors.textPrimary, fontSize: 13)),
-                    ),
-                    Text('${inf.rating.toStringAsFixed(1)}★',
-                        style: const TextStyle(color: CadenceColors.primaryLight, fontSize: 12, fontWeight: FontWeight.w600)),
-                  ]),
-                )),
-          ],
-          if (why.tags.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text('Shared traits (contribution to the score)', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
-            ...why.tags.map((t) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(children: [
-                    SizedBox(width: 120, child: Text(t.key, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: CadenceColors.textSecondary, fontSize: 12))),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: t.value / maxTag,
-                          minHeight: 6,
-                          backgroundColor: CadenceColors.border,
-                          valueColor: const AlwaysStoppedAnimation(CadenceColors.primaryLight),
-                        ),
-                      ),
-                    ),
-                  ]),
-                )),
-          ],
-          if (why.sameArtist) ...[
-            const SizedBox(height: 6),
-            const Text('Also: an artist you already rated well', style: TextStyle(color: CadenceColors.textSecondary, fontSize: 12)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SimilarAlbums extends ConsumerWidget {
-  final String albumId;
-  const _SimilarAlbums({required this.albumId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final similar = ref.watch(similarAlbumsProvider(albumId));
-    if (similar.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Sounds like', style: Theme.of(context).textTheme.titleLarge),
-        Text('Nearest albums by cosine similarity of tag profiles', style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 176,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: similar.length,
-            itemBuilder: (_, i) {
-              final a = similar[i].key;
-              return GestureDetector(
-                onTap: () => context.push('/album/${a.id}', extra: a),
-                child: Container(
-                  width: 120,
-                  margin: const EdgeInsets.only(right: 12),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    AlbumCover(url: a.coverUrl, width: 120, height: 120, borderRadius: 10),
-                    const SizedBox(height: 6),
-                    Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: CadenceColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
-                    Text('${(similar[i].value * 100).round()}% match', style: const TextStyle(color: CadenceColors.primaryLight, fontSize: 11)),
-                  ]),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 28),
-      ],
-    );
-  }
-}

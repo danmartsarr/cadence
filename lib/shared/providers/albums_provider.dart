@@ -165,3 +165,19 @@ final reviewsProvider = StateNotifierProvider<ReviewsNotifier, List<Review>>((re
 final albumReviewsProvider = Provider.family<List<Review>, String>((ref, albumId) {
   return ref.watch(reviewsProvider).where((r) => r.albumId == albumId).toList();
 });
+
+
+/// The user's taste as tags, each with the best-rated album that carries it.
+final tasteProvider = Provider<List<(String, double, Album?)>>((ref) {
+  final ratings = ref.watch(ratingsProvider);
+  final rec = ref.watch(recommenderProvider).valueOrNull;
+  if (rec == null || ratings.isEmpty) return const [];
+  // MusicBrainz spells some tags several ways ("neo soul", "neo-soul"): keep the first
+  final seen = <String>{};
+  final unique = rec.tasteProfile(ratings, k: 16).where((e) => seen.add(e.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''))).take(8);
+  return unique.map((e) {
+    final rated = ratings.entries.where((r) => r.value >= 3.5 && (rec.byId[r.key]?.tags.containsKey(e.key) ?? false)).toList()
+      ..sort((a, b) => (rec.byId[b.key]!.tags[e.key]!).compareTo(rec.byId[a.key]!.tags[e.key]!));
+    return (e.key, e.value, rated.isEmpty ? null : rec.byId[rated.first.key]);
+  }).toList();
+});
